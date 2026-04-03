@@ -1,0 +1,21 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+
+# Virtual Environment
+env/
+
+C:\Users\USER\Real_Eastate\files\.ipynb_checkpoints
+
+C:\Users\USER\Real_Eastate\.ipynb_checkpoints
+# Streamlit
+.streamlit/
+
+# IDE
+.vscode/
+.idea/
+
+# OS
+.DS_Store
+Thumbs.db
