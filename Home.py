@@ -1,188 +1,149 @@
-import streamlit as st
 import pandas as pd
-import pickle as pkl
-import os
+import plotly.express as px
+import streamlit as st
 
-st.set_page_config(
-    page_title="Real Estate Analytics - Gurgaon",
-    page_icon="🏢",
-    layout="wide",
-    initial_sidebar_state="expanded",
+from utils.analytics import market_kpis, sector_scores
+from utils.data_loader import file_status, load_properties
+from utils.ui import (
+    BUILDING_IMAGES,
+    hero,
+    inject_global_css,
+    metric_card,
+    module_card,
+    page_config,
+    shell_start,
 )
 
-# --- Custom CSS ---
-st.markdown("""
-<style>
-    /* Global Styles */
-    .main {
-        background-color: #f8f9fa;
-        color: #333;
-    }
-    h1, h2, h3 {
-        color: #0f172a; /* Slate 900 */
-        font-family: 'Segoe UI', sans-serif;
-    }
-    .stApp {
-        background: linear-gradient(135deg, #f5f7fa 0%, #c3cfe2 100%);
-    }
-    
-    /* Metrics Cards */
-    .metric-card {
-        background-color: white;
-        padding: 20px;
-        border-radius: 12px;
-        box-shadow: 0 4px 6px rgba(0,0,0,0.05);
-        text-align: center;
-        border-left: 5px solid #3b82f6; /* Blue 500 */
-        transition: transform 0.2s;
-    }
-    .metric-card:hover {
-        transform: translateY(-5px);
-        box-shadow: 0 10px 15px rgba(0,0,0,0.1);
-    }
-    .metric-value {
-        font-size: 2rem;
-        font-weight: bold;
-        color: #1e40af; /* Blue 800 */
-    }
-    .metric-label {
-        color: #64748b; /* Slate 500 */
-        font-size: 0.9rem;
-        text-transform: uppercase;
-        letter-spacing: 1px;
-    }
-    
-    /* Navigation Cards */
-    .nav-card {
-        background: white;
-        padding: 2rem;
-        border-radius: 16px;
-        box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
-        text-align: center;
-        height: 100%;
-        border-top: 5px solid #6366f1; /* Indigo 500 */
-        transition: all 0.3s ease;
-    }
-    .nav-card:hover {
-        transform: scale(1.03);
-        box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04);
-    }
-    .icon {
-        font-size: 3rem;
-        margin-bottom: 1rem;
-    }
-    
-    /* Headers */
-    .hero-header {
-        font-size: 3.5rem;
-        font-weight: 800;
-        text-align: center;
-        color: #1e3a8a;
-        margin-bottom: 0.5rem;
-        text-shadow: 2px 2px 4px rgba(0,0,0,0.1);
-    }
-    .hero-sub {
-        font-size: 1.25rem;
-        text-align: center;
-        color: #475569;
-        margin-bottom: 3rem;
-        font-weight: 300;
-    }
-</style>
-""", unsafe_allow_html=True)
 
-# --- Load Data for Metrics ---
-@st.cache_data
-def load_data():
-    try:
-        df = pd.read_csv("data/gurgaon_properties_cleaned_v2.csv")
-        return df
-    except FileNotFoundError:
-        st.error("Data file not found. Please ensure 'data/gurgaon_properties_cleaned_v2.csv' exists.")
-        return pd.DataFrame() # Return empty if fails
+page_config("Realty Intelligence")
+inject_global_css()
+shell_start("Executive Dashboard")
 
-df = load_data()
+df = load_properties()
 
-# --- Hero Section ---
-st.markdown('<div class="hero-header">Real Estate Analytics</div>', unsafe_allow_html=True)
-st.markdown('<div class="hero-sub">The Smartest Way to Buy Property in Gurgaon. <br>Predict Prices, Analyze Trends, and Find Your Dream Home.</div>', unsafe_allow_html=True)
+hero(
+    title="Real Estate",
+    accent="Command Center",
+    body=(
+        "A buyer and investor intelligence platform for pricing, market analysis, "
+        "property discovery, and sector-level decision signals."
+    ),
+    image_url=BUILDING_IMAGES[0],
+    eyebrow="Production-grade analytics for property decisions",
+)
 
-st.divider()
+if df.empty:
+    st.error("Could not load the cleaned property dataset. Add the required data file to use the dashboard.")
+    st.stop()
 
-# --- Key Metrics Section ---
-if not df.empty:
-    col1, col2, col3, col4 = st.columns(4)
-    
-    with col1:
-        total_properties = len(df)
-        st.markdown(f"""
-        <div class="metric-card">
-            <div class="metric-value">{total_properties:,}</div>
-            <div class="metric-label">Properties Listed</div>
-        </div>
-        """, unsafe_allow_html=True)
-        
-    with col2:
-        avg_price = df['price'].mean()
-        st.markdown(f"""
-        <div class="metric-card">
-            <div class="metric-value">₹ {avg_price:.2f} Cr</div>
-            <div class="metric-label">Average Price</div>
-        </div>
-        """, unsafe_allow_html=True)
-        
-    with col3:
-        top_sector = df['sector'].mode()[0]
-        st.markdown(f"""
-        <div class="metric-card">
-            <div class="metric-value">{top_sector}</div>
-            <div class="metric-label">Most Popular Sector</div>
-        </div>
-        """, unsafe_allow_html=True)
+kpis = market_kpis(df)
+st.markdown('<div class="section-title">Market Pulse</div>', unsafe_allow_html=True)
+cols = st.columns(6)
+cards = [
+    ("Total Listings", kpis["total_properties"], "Cleaned property records"),
+    ("Average Price", kpis["avg_price"], "Mean transaction ask"),
+    ("Median Price", kpis["median_price"], "Typical market point"),
+    ("Avg Price / Sqft", kpis["avg_psf"], "Across available listings"),
+    ("Top Sector", kpis["top_sector"], "Highest listing density"),
+    ("Dominant Type", kpis["top_type"], "Most common asset class"),
+]
+for col, (label, value, note) in zip(cols, cards):
+    col.markdown(metric_card(label, value, note), unsafe_allow_html=True)
 
-    with col4:
-        # Assuming 'property_type' exists, count the most common
-        top_type = df['property_type'].mode()[0].title()
-        st.markdown(f"""
-        <div class="metric-card">
-            <div class="metric-value">{top_type}</div>
-            <div class="metric-label">Trending Type</div>
-        </div>
-        """, unsafe_allow_html=True)
+scores = sector_scores(df)
+left, right = st.columns([1.15, 0.85])
 
-st.markdown("<br><br>", unsafe_allow_html=True)
+with left:
+    st.markdown('<div class="section-title">Market Snapshot</div>', unsafe_allow_html=True)
+    top_snapshot = (
+        df.groupby("sector")
+        .agg(listings=("sector", "size"), avg_price=("price", "mean"), avg_psf=("price_per_sqft", "mean"))
+        .reset_index()
+        .sort_values("listings", ascending=False)
+        .head(12)
+    )
+    fig = px.bar(
+        top_snapshot,
+        x="sector",
+        y="listings",
+        color="avg_price",
+        color_continuous_scale=["#ffd8c7", "#ff4b2b", "#2b2726"],
+        title="Most Active Sectors",
+        labels={"sector": "Sector", "listings": "Listings", "avg_price": "Avg Price (Cr)"},
+        template="plotly_white",
+    )
+    fig.update_layout(height=420, margin=dict(l=10, r=10, t=55, b=10), font=dict(color="#2b2726"))
+    st.plotly_chart(fig, width="stretch")
 
-# --- Navigation / modules Section ---
-st.subheader("Explore Our Modules")
+with right:
+    st.markdown('<div class="section-title">Decision Signals</div>', unsafe_allow_html=True)
+    if not scores.empty:
+        strongest = scores.iloc[0]
+        affordable = scores.sort_values("affordability_score", ascending=False).iloc[0]
+        premium = scores.sort_values("avg_price", ascending=False).iloc[0]
+        st.markdown(
+            metric_card(
+                "Best Investment Signal",
+                str(strongest["sector"]).title(),
+                f"Score {strongest['investment_score']:.0f}/100 with {int(strongest['availability'])} listings",
+            ),
+            unsafe_allow_html=True,
+        )
+        st.markdown(
+            metric_card(
+                "Value Zone",
+                str(affordable["sector"]).title(),
+                f"Avg psf Rs {affordable['avg_psf']:,.0f}",
+            ),
+            unsafe_allow_html=True,
+        )
+        st.markdown(
+            metric_card(
+                "Premium Zone",
+                str(premium["sector"]).title(),
+                f"Avg price Rs {premium['avg_price']:.2f} Cr",
+            ),
+            unsafe_allow_html=True,
+        )
 
-m_col1, m_col2, m_col3 = st.columns(3)
+st.markdown('<div class="section-title">Product Modules</div>', unsafe_allow_html=True)
+m1, m2, m3, m4 = st.columns(4)
+m1.markdown(
+    module_card(
+        "Price Prediction",
+        "Estimate fair market value using the existing ML pipeline and production-style validation.",
+        "ML Valuation",
+    ),
+    unsafe_allow_html=True,
+)
+m2.markdown(
+    module_card(
+        "Market Analysis",
+        "Filter inventory and compare sectors, property types, price bands, and luxury signals.",
+        "Analytics",
+    ),
+    unsafe_allow_html=True,
+)
+m3.markdown(
+    module_card(
+        "Recommendations",
+        "Discover similar societies and location-radius matches with image-led property cards.",
+        "Discovery",
+    ),
+    unsafe_allow_html=True,
+)
+m4.markdown(
+    module_card(
+        "Advanced Insights",
+        "Use sector scoring, persona recommendations, outlier detection, and society rankings.",
+        "Strategy",
+    ),
+    unsafe_allow_html=True,
+)
 
-with m_col1:
-    st.markdown("""
-    <div class="nav-card">
-        <div class="icon">💰</div>
-        <h3>Price Predictor</h3>
-        <p>Get accurate price estimates for properties based on location, amenities, and size.</p>
-    </div>
-    """, unsafe_allow_html=True)
-
-with m_col2:
-    st.markdown("""
-    <div class="nav-card">
-        <div class="icon">📊</div>
-        <h3>Market Analysis</h3>
-        <p>Deep dive into real estate trends, price distributions, and sector-wise comparisons.</p>
-    </div>
-    """, unsafe_allow_html=True)
-
-with m_col3:
-    st.markdown("""
-    <div class="nav-card">
-        <div class="icon">🏠</div>
-        <h3>Recommender System</h3>
-        <p>Discover properties that match your lifestyle and preferences using advanced AI.</p>
-    </div>
-    """, unsafe_allow_html=True)
-
-st.markdown("---")
-st.markdown("<div style='text-align: center; color: #64748b;'>© 2024 Real Estate Analytics. All Rights Reserved.</div>", unsafe_allow_html=True)
+st.markdown('<div class="section-title">Deployment Readiness</div>', unsafe_allow_html=True)
+status = file_status()
+status_df = pd.DataFrame(
+    [{"Artifact": name.replace("_", " ").title(), "Available": "Ready" if ok else "Missing"} for name, ok in status.items()]
+)
+st.dataframe(status_df, width="stretch", hide_index=True)
